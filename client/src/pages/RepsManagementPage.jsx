@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '../lib/axios';
+import api, { extractError } from '../lib/axios';
 import { Users, UserCheck, Trash2, Plus, ShieldCheck, Mail, ShieldAlert } from 'lucide-react';
 
 export default function RepsManagementPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('active'); // 'active' or 'pending'
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [assignmentRule, setAssignmentRule] = useState(null);
+  const [editingTerritory, setEditingTerritory] = useState({});
   
   // Add rep form states
   const [name, setName] = useState('');
@@ -14,12 +16,21 @@ export default function RepsManagementPage() {
   const [password, setPassword] = useState('');
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [territoryError, setTerritoryError] = useState('');
+  const [ruleError, setRuleError] = useState('');
 
   // Fetch users
   const { data: users = [], isLoading, error } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
       const res = await api.get('/users');
+      // fetch assignment rule
+      try {
+        const ruleRes = await api.get('/assignment-rules');
+        setAssignmentRule(ruleRes.data);
+      } catch (e) {
+        // ignore
+      }
       return res.data;
     },
   });
@@ -64,7 +75,7 @@ export default function RepsManagementPage() {
       setIsAddModalOpen(false);
       queryClient.invalidateQueries({ queryKey: ['users'] });
     } catch (err) {
-      setFormError(err.response?.data?.message || 'Failed to add sales rep');
+      setFormError(extractError(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -168,6 +179,33 @@ export default function RepsManagementPage() {
                       {new Date(rep.createdAt).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 text-right space-x-2">
+                      <div className="flex items-center gap-2 justify-end">
+                        <input
+                          type="text"
+                          placeholder="Territory"
+                          value={editingTerritory[rep._id] ?? (rep.territory || '')}
+                          onChange={(e) => setEditingTerritory(prev => ({ ...prev, [rep._id]: e.target.value }))}
+                          className="px-2 py-1.5 border border-slate-300 dark:border-slate-700 rounded-md text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        />
+                        <button
+                          onClick={async () => {
+                            const newTerr = editingTerritory[rep._id] ?? rep.territory ?? '';
+                            setTerritoryError('');
+                            try {
+                              await api.put(`/users/${rep._id}`, { territory: newTerr });
+                              queryClient.invalidateQueries({ queryKey: ['users'] });
+                            } catch (err) {
+                              setTerritoryError(extractError(err));
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 rounded-md text-sm font-medium transition-colors"
+                        >
+                          Save
+                        </button>
+                        {territoryError && (
+                          <span className="text-xs text-red-500 ml-2">{territoryError}</span>
+                        )}
+                      </div>
                       {!rep.approved && (
                         <button
                           onClick={() => approveMutation.mutate(rep._id)}
@@ -195,6 +233,40 @@ export default function RepsManagementPage() {
           </div>
         </div>
       )}
+
+      {/* Assignment Rule Panel */}
+      <div className="mt-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6">
+        <div className="mb-4">
+          <h3 className="font-semibold text-slate-900 dark:text-white text-base">Assignment Rules</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Control how new leads are automatically assigned to reps.</p>
+        </div>
+        <div className="flex items-center gap-4">
+          <label className="text-sm font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap">Rule Type:</label>
+              <select
+                value={assignmentRule?.type || 'round_robin'}
+                onChange={async (e) => {
+                  const newType = e.target.value;
+                  setRuleError('');
+                  try {
+                    const res = await api.put('/assignment-rules', { type: newType });
+                    setAssignmentRule(res.data);
+                  } catch (err) {
+                    setRuleError(extractError(err));
+                  }
+                }}
+            className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+          >
+            <option value="round_robin">Round Robin</option>
+            <option value="territory">Territory-based</option>
+          </select>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+            Active: {assignmentRule?.type === 'territory' ? 'Territory-based' : 'Round Robin'}
+          </span>
+          {ruleError && (
+            <span className="ml-2 text-xs text-red-500">{ruleError}</span>
+          )}
+        </div>
+      </div>
 
       {/* Add Rep Modal */}
       {isAddModalOpen && (

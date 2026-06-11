@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import api from '../lib/axios';
+import api, { extractError } from '../lib/axios';
 import useAuthStore from '../store/authStore';
 import { UserPlus } from 'lucide-react';
 
@@ -40,7 +40,7 @@ export default function RegisterPage() {
       setAuth(res.data, res.data.token);
       navigate('/leads');
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed');
+      setError(extractError(err));
     } finally {
       setLoading(false);
     }

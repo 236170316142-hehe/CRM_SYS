@@ -12,14 +12,26 @@ router.use(protect);
 router.get('/', async (req, res, next) => {
   try {
     const query = {};
-    if (req.user.role === 'rep') {
-      query.assignedTo = req.user._id;
-    }
+    if (req.user.role === 'rep') query.assignedTo = req.user._id;
     const contacts = await Contact.find(query).populate('assignedTo', 'name email');
     res.json(contacts);
-  } catch (error) {
-    next(error);
-  }
+  } catch (error) { next(error); }
+});
+
+// @desc    Get single contact with linked deals
+// @route   GET /api/contacts/:id
+// @access  Private
+router.get('/:id', async (req, res, next) => {
+  try {
+    const contact = await Contact.findById(req.params.id).populate('assignedTo', 'name email');
+    if (!contact) { res.status(404); throw new Error('Contact not found'); }
+
+    const deals = await require('../models/Deal').find({ contact: req.params.id })
+      .populate('assignedTo', 'name')
+      .sort({ createdAt: -1 });
+
+    res.json({ ...contact.toObject(), deals });
+  } catch (error) { next(error); }
 });
 
 // @desc    Create a contact

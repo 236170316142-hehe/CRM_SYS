@@ -9,6 +9,8 @@ import PipelinePage from './pages/PipelinePage';
 import ContactsPage from './pages/ContactsPage';
 import ReportsPage from './pages/ReportsPage';
 import RepsManagementPage from './pages/RepsManagementPage';
+import TasksPage from './pages/TasksPage';
+import ContractsPage from './pages/ContractsPage';
 import Layout from './components/Layout';
 
 const queryClient = new QueryClient();
@@ -40,6 +42,8 @@ function App() {
           <Route path="/pipeline" element={<ProtectedRoute><PipelinePage /></ProtectedRoute>} />
           <Route path="/contacts" element={<ProtectedRoute><ContactsPage /></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
+          <Route path="/tasks" element={<ProtectedRoute><TasksPage /></ProtectedRoute>} />
+          <Route path="/contracts" element={<ProtectedRoute><ContractsPage /></ProtectedRoute>} />
           <Route path="/reps" element={<AdminRoute><RepsManagementPage /></AdminRoute>} />
         </Routes>
       </Router>

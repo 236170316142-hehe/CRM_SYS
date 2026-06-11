@@ -9,25 +9,51 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+
+      # ── Database & Cache ──────────────────────────────────────────────────
       - key: MONGODB_URI
-        sync: false          # Set manually in Render dashboard
+        sync: false          # Paste your MongoDB Atlas URI in Render dashboard
       - key: REDIS_URL
-        sync: false          # Set manually (Upstash URL)
+        sync: false          # Paste your Upstash Redis URL
+
+      # ── Auth ──────────────────────────────────────────────────────────────
       - key: JWT_SECRET
-        generateValue: true  # Render auto-generates a secure value
-      - key: CLIENT_URL
-        fromService:
-          name: teamgrid-crm-client
-          type: web
-          property: host     # Will be set to the static site's URL
+        generateValue: true  # Render auto-generates a secure random value
+
+      # ── Email (Gmail SMTP) ────────────────────────────────────────────────
+      - key: GMAIL_USER
+        sync: false          # your Gmail address
+      - key: GMAIL_APP_PASSWORD
+        sync: false          # 16-char Gmail App Password
+      - key: EMAIL_FROM
+        sync: false          # e.g. Teamgrid CRM <you@gmail.com>
+
+      # ── Resend (fallback if Gmail not set) ────────────────────────────────
       - key: RESEND_API_KEY
         sync: false
+
+      # ── Integrations ─────────────────────────────────────────────────────
       - key: SLACK_WEBHOOK_URL
         sync: false
       - key: PANDADOC_API_KEY
         sync: false
       - key: REPORT_EMAIL_RECIPIENT
         sync: false
+
+      # ── URLs ──────────────────────────────────────────────────────────────
+      - key: CLIENT_URL
+        fromService:
+          name: teamgrid-crm-client
+          type: web
+          property: host
+      - key: SERVER_URL
+        sync: false          # Set to your Render API URL once deployed
+      - key: DEMO_SITE_URL
+        sync: false          # Set to your demo site URL if hosted separately
+
+      # ── Feature flags ─────────────────────────────────────────────────────
+      - key: ALLOW_TEST_DRIP
+        value: false         # Disable test endpoints in production
 
   # ── Frontend: React Static Site ───────────────────────────────────────────
   - type: web
@@ -42,7 +68,6 @@ services:
           name: teamgrid-crm-api
           type: web
           envVarKey: RENDER_EXTERNAL_URL
-          # This makes VITE_API_URL = https://teamgrid-crm-api.onrender.com
     routes:
       - type: rewrite
         source: /*

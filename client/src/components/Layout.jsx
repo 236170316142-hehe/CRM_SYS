@@ -1,14 +1,16 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
-import { LayoutDashboard, Users, UserSquare2, BarChart3, LogOut, UserCog } from 'lucide-react';
+import { LayoutDashboard, Users, UserSquare2, BarChart3, LogOut, UserCog, CalendarClock, FileText } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 const navItems = [
-  { name: 'Leads', href: '/leads', icon: Users },
-  { name: 'Pipeline', href: '/pipeline', icon: LayoutDashboard },
-  { name: 'Contacts', href: '/contacts', icon: UserSquare2 },
-  { name: 'Reports', href: '/reports', icon: BarChart3 },
+  { name: 'Leads',     href: '/leads',     icon: Users },
+  { name: 'Pipeline',  href: '/pipeline',  icon: LayoutDashboard },
+  { name: 'Tasks',     href: '/tasks',     icon: CalendarClock },
+  { name: 'Contacts',  href: '/contacts',  icon: UserSquare2 },
+  { name: 'Contracts', href: '/contracts', icon: FileText },
+  { name: 'Reports',   href: '/reports',   icon: BarChart3 },
 ];
 
 export default function Layout({ children }) {

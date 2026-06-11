@@ -94,6 +94,39 @@ router.put('/:id/approve', async (req, res, next) => {
   }
 });
 
+// @desc    Update user fields (territory, name, etc.)
+// @route   PUT /api/users/:id
+// @access  Private/Admin
+router.put('/:id', async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      res.status(404);
+      throw new Error('User not found');
+    }
+
+    const { name, email, territory, approved, role } = req.body;
+    if (name) user.name = name;
+    if (email) user.email = email;
+    if (typeof approved === 'boolean') user.approved = approved;
+    if (role) user.role = role;
+    if (typeof territory !== 'undefined') user.territory = territory;
+
+    await user.save();
+
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      approved: user.approved,
+      territory: user.territory,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // @desc    Delete a user
 // @route   DELETE /api/users/:id
 // @access  Private/Admin

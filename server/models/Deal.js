@@ -39,6 +39,15 @@ const dealSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  // Proposal / quote tracking
+  proposalStatus: {
+    type: String,
+    enum: ['none', 'generating', 'sent', 'viewed', 'signed', 'declined'],
+    default: 'none',
+  },
+  proposalSentAt: { type: Date },
+  pandaDocId:     { type: String },   // PandaDoc document ID if used
+  proposalUrl:    { type: String },   // PandaDoc shareable link or internal download path
 }, {
   timestamps: true,
 });

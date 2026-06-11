@@ -2,9 +2,14 @@ const mongoose = require('mongoose');
 
 const supportTicketSchema = new mongoose.Schema({
   externalId: {
-    type: String, // Zendesk ticket ID
-    required: true,
+    type: String,
     unique: true,
+    sparse: true, // allows null for manually created tickets
+  },
+  source: {
+    type: String,
+    enum: ['zendesk', 'freshdesk', 'manual'],
+    default: 'manual',
   },
   contact: {
     type: mongoose.Schema.Types.ObjectId,
@@ -15,6 +20,10 @@ const supportTicketSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  description: {
+    type: String,
+    default: '',
+  },
   priority: {
     type: String,
     enum: ['low', 'normal', 'high', 'urgent'],
@@ -22,8 +31,14 @@ const supportTicketSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['open', 'pending', 'solved'],
+    enum: ['open', 'pending', 'solved', 'closed'],
     default: 'open',
+  },
+  externalCreatedAt: {
+    type: Date,
+  },
+  externalUrl: {
+    type: String, // link back to Zendesk/Freshdesk ticket
   },
 }, {
   timestamps: true,

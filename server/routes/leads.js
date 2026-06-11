@@ -1,9 +1,13 @@
 const express = require('express');
 const Lead = require('../models/Lead');
 const User = require('../models/User');
+const Task = require('../models/Task');
+const Contact = require('../models/Contact');
 const { protect } = require('../middleware/authMiddleware');
-const { welcomeEmailQueue } = require('../jobs/queues');
+const { autoAssignRep } = require('../services/assignmentService');
+const { enrollNewLead, enrollDemoRequested } = require('../services/dripService');
 const { sendSlackNotification, sendEmailNotification } = require('../services/notifyService');
+const { sanitizePhone } = require('../utils/sanitize');
 
 const router = express.Router();
 
@@ -38,6 +42,13 @@ router.post('/', async (req, res, next) => {
   try {
     const { name, email, phone, company, source, assignedTo } = req.body;
 
+    // Validate phone if provided
+    const phoneCheck = sanitizePhone(phone);
+    if (!phoneCheck.valid) {
+      res.status(422);
+      throw new Error(phoneCheck.reason);
+    }
+
     let assignedUser = null;
 
     if (assignedTo) {
@@ -45,56 +56,7 @@ router.post('/', async (req, res, next) => {
       assignedUser = await User.findById(assignedTo);
     } else {
       // Auto-assign using assignment rules
-      const AssignmentRule = require('../models/AssignmentRule');
-
-      let rule = await AssignmentRule.findOne();
-      if (!rule) {
-        // create default rule (round_robin) if missing
-        rule = await AssignmentRule.create({ type: 'round_robin' });
-      }
-
-      // Helper to pick next rep in list using lastAssigned pointer
-      const pickNext = async (reps, pointerKey) => {
-        if (!reps || reps.length === 0) return null;
-        // reps are ordered by _id for deterministic rotation
-        reps.sort((a, b) => a._id.toString().localeCompare(b._id.toString()));
-
-        const lastId = rule.lastAssigned && rule.lastAssigned[pointerKey] ? rule.lastAssigned[pointerKey] : rule.lastAssigned || null;
-        let idx = 0;
-        if (lastId) {
-          const found = reps.findIndex(r => r._id.toString() === lastId.toString());
-          idx = found >= 0 ? (found + 1) % reps.length : 0;
-        }
-        const chosen = reps[idx];
-        // persist pointer
-        if (!rule.lastAssigned || typeof rule.lastAssigned === 'string') {
-          // convert to map form for consistent storage
-          rule.lastAssigned = {};
-        }
-        rule.lastAssigned[pointerKey] = chosen._id;
-        await rule.save();
-        return chosen;
-      };
-
-      if (rule.type === 'round_robin') {
-        const reps = await User.find({ role: 'rep', approved: true });
-        assignedUser = await pickNext(reps, 'global');
-      } else if (rule.type === 'territory') {
-        // try to match by lead territory, fall back to all reps
-        let reps = [];
-        if (req.body.territory) {
-          reps = await User.find({ role: 'rep', approved: true, territory: req.body.territory });
-        }
-        if (!reps || reps.length === 0) {
-          reps = await User.find({ role: 'rep', approved: true });
-        }
-        const pointerKey = req.body.territory || 'global';
-        assignedUser = await pickNext(reps, pointerKey);
-      } else {
-        // unknown rule: fallback to random
-        const reps = await User.find({ role: 'rep', approved: true });
-        if (reps.length > 0) assignedUser = reps[Math.floor(Math.random() * reps.length)];
-      }
+      assignedUser = await autoAssignRep(req.body.territory || null);
     }
 
     const lead = await Lead.create({
@@ -106,22 +68,16 @@ router.post('/', async (req, res, next) => {
       assignedTo: assignedUser ? assignedUser._id : null,
     });
 
-    // Enqueue welcome emails
-    const jobData = {
-      email: lead.email,
-      firstName: lead.name.split(' ')[0],
-      company: lead.company || 'your company',
-    };
+    // Enroll in New Lead drip sequence (Day 0 / 2 / 5)
+    await enrollNewLead(lead, assignedUser);
 
-    await welcomeEmailQueue.add('welcomeEmailDay0', { ...jobData, sequenceDay: 0 });
-    await welcomeEmailQueue.add('welcomeEmailDay2', { ...jobData, sequenceDay: 2 }, { delay: 2 * 24 * 60 * 60 * 1000 });
-    await welcomeEmailQueue.add('welcomeEmailDay5', { ...jobData, sequenceDay: 5 }, { delay: 5 * 24 * 60 * 60 * 1000 });
-
+    // Notify assigned rep by email
     if (assignedUser) {
       await sendEmailNotification(
         assignedUser.email,
         'New Lead Assigned',
-        `<p>You have been assigned a new lead: ${lead.name} from ${lead.company || 'Unknown'}.</p>`
+        `<p>You have been assigned a new lead: <strong>${lead.name}</strong> from <strong>${lead.company || 'Unknown'}</strong>.</p>
+         <p>Email: ${lead.email}</p>`
       );
     }
 
@@ -142,11 +98,77 @@ router.put('/:id', async (req, res, next) => {
     if (req.body.assignedTo === '') {
       req.body.assignedTo = null;
     }
-    const lead = await Lead.findByIdAndUpdate(req.params.id, req.body, { new: true }).populate('assignedTo', 'name email');
+
+    // Fetch current lead before update to detect stage transitions
+    const currentLead = await Lead.findById(req.params.id);
+    if (!currentLead) {
+      res.status(404);
+      throw new Error('Lead not found');
+    }
+
+    const previousStatus = currentLead.status;
+    const newStatus = req.body.status;
+
+    const lead = await Lead.findByIdAndUpdate(req.params.id, req.body, { new: true })
+      .populate('assignedTo', 'name email');
+
     if (!lead) {
       res.status(404);
       throw new Error('Lead not found');
     }
+
+    // ── Stage-change triggers ──────────────────────────────────────────────
+    if (newStatus && newStatus !== previousStatus) {
+
+      // Trigger: Demo Requested drip when status becomes 'contacted'
+      if (newStatus === 'contacted') {
+        await enrollDemoRequested(lead, lead.assignedTo);
+      }
+
+      // Auto follow-up task for contacted / qualified
+      if (['contacted', 'qualified'].includes(newStatus)) {
+        const taskAssignee = lead.assignedTo?._id ?? lead.assignedTo ?? req.user._id;
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(9, 0, 0, 0);
+        const subjectMap = {
+          contacted: `Follow up with ${lead.name}${lead.company ? ` at ${lead.company}` : ''} — marked Contacted`,
+          qualified: `Schedule a demo with ${lead.name}${lead.company ? ` at ${lead.company}` : ''} — marked Qualified`,
+        };
+        await Task.create({
+          subject: subjectMap[newStatus],
+          dueDate: tomorrow,
+          status: 'pending',
+          relatedTo: lead._id,
+          onModel: 'Lead',
+          assignedTo: taskAssignee,
+        });
+      }
+
+      // ── Auto-convert lead → Contact when Won or Qualified ─────────────
+      if (['won', 'qualified'].includes(newStatus)) {
+        // Upsert: create contact if not already there (match by email)
+        const existingContact = await Contact.findOne({ email: lead.email });
+        if (!existingContact) {
+          await Contact.create({
+            name:       lead.name,
+            email:      lead.email,
+            phone:      lead.phone   || '',
+            company:    lead.company || '',
+            assignedTo: lead.assignedTo?._id ?? lead.assignedTo ?? null,
+          });
+          console.log(`[Leads] Auto-converted lead "${lead.name}" to Contact (status: ${newStatus})`);
+        } else {
+          // Update existing contact with latest info
+          existingContact.phone   = lead.phone   || existingContact.phone;
+          existingContact.company = lead.company || existingContact.company;
+          existingContact.assignedTo = lead.assignedTo?._id ?? lead.assignedTo ?? existingContact.assignedTo;
+          await existingContact.save();
+          console.log(`[Leads] Updated existing Contact for "${lead.name}"`);
+        }
+      }
+    }
+
     res.json(lead);
   } catch (error) {
     next(error);

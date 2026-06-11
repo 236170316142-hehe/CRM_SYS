@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const activitySchema = new mongoose.Schema({
   type: {
     type: String,
-    enum: ['call', 'meeting', 'email'],
+    enum: ['call', 'meeting', 'email', 'stage_change', 'contract_renewal'],
     required: true,
   },
   outcome: {
@@ -15,7 +15,7 @@ const activitySchema = new mongoose.Schema({
   },
   onModel: {
     type: String,
-    enum: ['Deal', 'Lead'],
+    enum: ['Deal', 'Lead', 'Contract'],
   },
   performedBy: {
     type: mongoose.Schema.Types.ObjectId,

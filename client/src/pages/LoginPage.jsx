@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useNavigate, Link } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
-import api from '../lib/axios';
+import api, { extractError } from '../lib/axios';
 import { LogIn } from 'lucide-react';
 
 const loginSchema = z.object({
@@ -32,7 +32,7 @@ export default function LoginPage() {
       setAuth(response.data, response.data.token);
       navigate('/leads');
     } catch (error) {
-      setServerError(error.response?.data?.message || 'Login failed');
+      setServerError(extractError(error));
     }
   };
 
