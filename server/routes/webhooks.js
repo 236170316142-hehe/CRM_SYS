@@ -129,7 +129,9 @@ router.post('/lead', async (req, res, next) => {
     }
 
     // Upsert pending lead (replaces if same email re-submits before verifying)
-    const BASE_URL = process.env.SERVER_URL || `http://localhost:${process.env.PORT || 5000}`;
+    const BASE_URL = process.env.SERVER_URL && !process.env.SERVER_URL.includes('trycloudflare.com')
+      ? process.env.SERVER_URL
+      : `${req.protocol}://${req.get('host')}`;
     const pending = await PendingLead.findOneAndUpdate(
       { email: email.toLowerCase().trim() },
       {
@@ -172,7 +174,11 @@ router.post('/lead', async (req, res, next) => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/verify-email/:token', async (req, res, next) => {
   const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
-  const DEMO_URL   = process.env.DEMO_SITE_URL || 'http://localhost:3000';
+  const DEMO_URL   = process.env.DEMO_SITE_URL && !process.env.DEMO_SITE_URL.includes('trycloudflare.com')
+    ? process.env.DEMO_SITE_URL
+    : (req.get('host').includes('localhost') || req.get('host').includes('127.0.0.1'))
+      ? 'http://localhost:3000'
+      : `${req.protocol}://${req.get('host')}`;
 
   try {
     const pending = await PendingLead.findOne({

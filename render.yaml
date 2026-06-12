@@ -30,14 +30,11 @@ services:
       - key: REPORT_EMAIL_RECIPIENT
         sync: false
       - key: CLIENT_URL
-        fromService:
-          name: teamgrid-crm-client
-          type: web
-          property: host
+        value: https://crm-sys-1.onrender.com
       - key: SERVER_URL
-        sync: false
+        value: https://crm-sys.onrender.com
       - key: DEMO_SITE_URL
-        sync: false
+        value: https://crm-sys.onrender.com
       - key: ALLOW_TEST_DRIP
         value: "false"
 
@@ -50,10 +47,7 @@ services:
     staticPublishPath: dist
     envVars:
       - key: VITE_API_URL
-        fromService:
-          name: teamgrid-crm-api
-          type: web
-          envVarKey: RENDER_EXTERNAL_URL
+        value: https://crm-sys.onrender.com
     routes:
       - type: rewrite
         source: /*

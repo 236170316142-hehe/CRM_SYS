@@ -2,7 +2,11 @@ import axios from 'axios';
 import useAuthStore from '../store/authStore';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: import.meta.env.VITE_API_URL 
+    ? (import.meta.env.VITE_API_URL.endsWith('/api') 
+        ? import.meta.env.VITE_API_URL 
+        : `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api`) 
+    : '/api',
 });
 
 function isNetworkError(error) {

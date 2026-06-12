@@ -21,6 +21,8 @@ const ticketRoutes         = require('./routes/tickets');
 
 const app = express();
 
+app.set('trust proxy', true);
+
 // Middleware
 app.use(helmet({
   // Allow the demo site to make cross-origin fetches to this API

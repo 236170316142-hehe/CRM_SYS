@@ -760,13 +760,11 @@
   </div>
 
   <script>
-    // ── Config ────────────────────────────────────────────────
-    // API_BASE is set by start-dev.ps1 automatically on each startup.
-    // On localhost: always port 5000.
-    // On public tunnel: the script updates this line with the current URL.
     const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
       ? `${window.location.protocol}//${window.location.hostname}:5000`
-      : 'https://bottles-certificate-locator-mary.trycloudflare.com';
+      : (window.location.hostname && !window.location.hostname.endsWith('trycloudflare.com'))
+        ? window.location.origin
+        : 'https://bottles-certificate-locator-mary.trycloudflare.com';
 
     // ── Toast helper ──────────────────────────────────────────
     let toastTimer;
